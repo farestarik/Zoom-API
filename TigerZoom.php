@@ -4,12 +4,12 @@ namespace App\Libraries\Zoom;
 
 class TigerZoom{
 
-  const jwtToken = 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJhdWQiOm51bGwsImlzcyI6IldTSURCOWFkVHAteTNnMTNQc3ZpbHciLCJleHAiOjE2MTY4NjkxOTMsImlhdCI6MTYxNjI2NDM5M30.WHWz2G5e2oNSHEe3vCnWEyoxxIqDAkm4HuD8SYemzXg';
+  const jwtToken = ''; // JWT Token
 
   public static function createZoomMeeting($meetingConfig = []){
     
     $requestBody = [
-        'topic'			=> $meetingConfig['topic'] 		?? 'PHP General Talk',
+        'topic'			=> $meetingConfig['topic'] 		?? 'TIGER ZOOM',
         'type'			=> $meetingConfig['type'] 		?? 2,
         'start_time'	=> $meetingConfig['start_time']	?? date('Y-m-dTh:i:00').'Z',
         'duration'		=> $meetingConfig['duration'] 	?? 30,
@@ -33,7 +33,7 @@ class TigerZoom{
         ]
     ];
 
-    $zoomUserId = "q_c3VW6hQAG5Fi83u0X_xg";
+    $zoomUserId = ""; // User ID
 
     $curl = curl_init();
     curl_setopt($curl, CURLOPT_SSL_VERIFYPEER, 0); // Skip SSL Verification
