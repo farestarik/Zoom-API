@@ -4,10 +4,12 @@ namespace App\Libraries\Zoom;
 
 class TigerZoom{
 
-  const jwtToken = ''; // JWT Token
-
   public static function createZoomMeeting($meetingConfig = []){
     
+    if(is_null(\zoom_refresh_token())){
+        return ['response' => null];
+    }
+
     $requestBody = [
         'topic'			=> $meetingConfig['topic'] 		?? 'TIGER ZOOM',
         'type'			=> $meetingConfig['type'] 		?? 2,
@@ -33,7 +35,11 @@ class TigerZoom{
         ]
     ];
 
-    $zoomUserId = ""; // User ID
+    // $zoomUserId = "q_c3VW6hQAG5Fi83u0X_xg";
+    if(getZoomUserId() == null){
+      return ['response' => 'uid'];
+    }
+    $zoomUserId = getZoomUserId();
 
     $curl = curl_init();
     curl_setopt($curl, CURLOPT_SSL_VERIFYPEER, 0); // Skip SSL Verification
@@ -49,7 +55,7 @@ class TigerZoom{
       CURLOPT_CUSTOMREQUEST => "POST",
       CURLOPT_POSTFIELDS => json_encode($requestBody),
       CURLOPT_HTTPHEADER => array(
-        "Authorization: Bearer ".self::jwtToken,
+        "Authorization: Bearer ".getZoomJwtToken(),
         "Content-Type: application/json",
         "cache-control: no-cache"
       ),
@@ -59,8 +65,16 @@ class TigerZoom{
     $err = curl_error($curl);
 
     curl_close($curl);
+    
 
+    if(isset(json_decode($response)->code)){
+      if(json_decode($response)->code == 124){
+        self::reGenerateToken();
+      }
+    }
+    
     if ($err) {
+      //dd("SD");
       return [
           'success' 	=> false, 
           'msg' 		=> 'cURL Error #:' . $err,
@@ -76,6 +90,9 @@ class TigerZoom{
   }
 
   public static function updateZoomMeeting($id, $meetingConfig = []){
+    if(is_null(\zoom_refresh_token())){
+      return ['response' => null];
+    }
 
     $curl = curl_init();
     curl_setopt($curl, CURLOPT_SSL_VERIFYPEER, 0); // Skip SSL Verification
@@ -91,7 +108,7 @@ class TigerZoom{
       CURLOPT_CUSTOMREQUEST => "PATCH",
       CURLOPT_POSTFIELDS => json_encode($meetingConfig),
       CURLOPT_HTTPHEADER => array(
-        "Authorization: Bearer ".self::jwtToken,
+        "Authorization: Bearer ".getZoomJwtToken(),
         "Content-Type: application/json",
         "cache-control: no-cache"
       ),
@@ -101,6 +118,12 @@ class TigerZoom{
     $err = curl_error($curl);
 
     curl_close($curl);
+
+    if(isset(json_decode($response)->code)){
+      if(json_decode($response)->code == 124){
+        self::reGenerateToken();
+      }
+    }
 
     if ($err) {
       return [
@@ -121,6 +144,10 @@ class TigerZoom{
 
   public static function readZoomMeeting($id){
 
+    if(is_null(\zoom_refresh_token())){
+      return ['response' => null];
+    }
+
     $curl = curl_init();
     curl_setopt($curl, CURLOPT_SSL_VERIFYPEER, 0); // Skip SSL Verification
     curl_setopt_array($curl, array(
@@ -134,7 +161,7 @@ class TigerZoom{
       CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
       CURLOPT_CUSTOMREQUEST => "GET",
       CURLOPT_HTTPHEADER => array(
-        "Authorization: Bearer ".self::jwtToken,
+        "Authorization: Bearer ".getZoomJwtToken(),
         "Content-Type: application/json",
         "cache-control: no-cache"
       ),
@@ -144,6 +171,12 @@ class TigerZoom{
     $err = curl_error($curl);
 
     curl_close($curl);
+
+    if(isset(json_decode($response)->code)){
+      if(json_decode($response)->code == 124){
+        self::reGenerateToken();
+      }
+    }
 
     if ($err) {
       return [
@@ -164,6 +197,10 @@ class TigerZoom{
 
   public static function deleteZoomMeeting($id){
 
+    if(is_null(\zoom_refresh_token())){
+      return ['response' => null];
+    }
+
     $curl = curl_init();
     curl_setopt($curl, CURLOPT_SSL_VERIFYPEER, 0); // Skip SSL Verification
     curl_setopt_array($curl, array(
@@ -177,7 +214,7 @@ class TigerZoom{
       CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
       CURLOPT_CUSTOMREQUEST => "DELETE",
       CURLOPT_HTTPHEADER => array(
-        "Authorization: Bearer ".self::jwtToken,
+        "Authorization: Bearer ".getZoomJwtToken(),
         "Content-Type: application/json",
         "cache-control: no-cache"
       ),
@@ -187,6 +224,12 @@ class TigerZoom{
     $err = curl_error($curl);
 
     curl_close($curl);
+
+    if(isset(json_decode($response)->code)){
+      if(json_decode($response)->code == 124){
+        self::reGenerateToken();
+      }
+    }
 
     if ($err) {
       return [
@@ -204,6 +247,89 @@ class TigerZoom{
 
    
   } // End Delete Meeting Method
+
+  public static function reGenerateToken(){
+
+    $client = new \GuzzleHttp\Client(['base_uri' => 'https://zoom.us']);
+            $response = $client->request('POST', '/oauth/token?grant_type=refresh_token&refresh_token='.zoom_refresh_token(), [
+                "headers" => [
+                    "Authorization" => "Basic ". base64_encode(env('ZOOM_CLIENT_ID').':'.env('ZOOM_CLIENT_SECRET'))
+                ],
+                'form_params' => [
+                    // "grant_type" => "refresh_token",
+                    // "refresh_token" => \zoom_refresh_token()
+                ]
+            ]);
+    $refresh_token = json_decode($response->getBody()->getContents(), true);
+    \update_zoom_refresh_token($refresh_token);
+    return true;
+  } // End Regenrate Token Method
+
+
+  public static function requestToken($code){
+    $client = new \GuzzleHttp\Client(['base_uri' => 'https://zoom.us']);
+            $response = $client->request('POST', '/oauth/token?grant_type=authorization_code&code='.$code.'&redirect_uri='.env("ZOOM_REDIRECT_URI"), [
+                "headers" => [
+                    "Authorization" => "Basic ". base64_encode(env('ZOOM_CLIENT_ID').':'.env('ZOOM_CLIENT_SECRET'))
+                ],
+                'form_params' => [
+                    
+                ]
+            ]);
+        $response = json_decode($response->getBody()->getContents(), true);
+        \update_zoom_refresh_token(json_encode($response));
+  } // End Request Token Method
+
+  public static function requestUserId($email = null){
+    if(!$email){
+      return false;
+    }
+    $curl = curl_init();
+    curl_setopt($curl, CURLOPT_SSL_VERIFYPEER, 0); // Skip SSL Verification
+    curl_setopt_array($curl, array(
+      CURLOPT_URL => "https://api.zoom.us/v2/users/".$email,
+      CURLOPT_RETURNTRANSFER => true,
+      CURLOPT_ENCODING => "",
+      CURLOPT_MAXREDIRS => 10,
+      CURLOPT_SSL_VERIFYHOST => 0,
+      CURLOPT_SSL_VERIFYPEER => 0,
+      CURLOPT_TIMEOUT => 30,
+      CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
+      CURLOPT_CUSTOMREQUEST => "GET",
+      CURLOPT_HTTPHEADER => array(
+        "Authorization: Bearer ".getZoomJwtToken(),
+        "Content-Type: application/json",
+        "cache-control: no-cache"
+      ),
+    ));
+
+    $response = curl_exec($curl);
+    $err = curl_error($curl);
+
+    curl_close($curl);
+
+    if(isset(json_decode($response)->code)){
+      if(json_decode($response)->code == 124){
+        self::reGenerateToken();
+      }
+    }
+
+    if ($err) {
+      return [
+          'success' 	=> false, 
+          'msg' 		=> 'cURL Error #:' . $err,
+          'response' 	=> ''
+      ];
+    } else {
+      return [
+          'success' 	=> true,
+          'msg' 		=> 'success',
+          'response' 	=> json_decode($response)->id
+      ];
+    } 
+
+   
+  } // End Request UID Method
 
 }
 
